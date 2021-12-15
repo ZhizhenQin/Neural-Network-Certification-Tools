@@ -318,6 +318,105 @@ def get_barrier_bounds_fastlin_batch(x0, eps, Ws, bs, method="fastlin", activati
   
   return UBs, LBs 
 
+def get_barrier_bounds_fastlin_batch_mult_layers(x0, eps, Ws, bs, method="fastlin", activation="relu"):
+  # x0: (dim_in, num_batch)
+  # initial setting
+  # act = lambda x: torch.relu(x) 
+  num_layer = len(Ws)
+  assert len(Ws) == len(bs), "len(Ws) != len(bs)"
+  # assert num_layer == 2, "currently only support 2-layer NN"
+  # assert x0.shape[1] == 1, "currently only support num_batch = 1 computation"
+  num_samples = x0.shape[1]
+
+  A_Us, A_Ls, B_Us, B_Ls = [], [], [], []
+
+  UBs, LBs = [], []
+  if type(eps) is torch.Tensor:
+    eps = eps.unsqueeze(0).T
+  UBs.append(x0+eps) # (dim_in, num_batch) 
+  LBs.append(x0-eps) 
+
+  for i in range(num_layer):
+    if i == 0:
+      W_pos=Ws[i].clone() # Ws[0]: (num_hidden, dim_in)
+      W_neg=Ws[i].clone() 
+      W_pos[Ws[i]<0]=0
+      W_neg[Ws[i]>0]=0
+      UB=torch.matmul(W_pos,UBs[i])+torch.matmul(W_neg,LBs[i])+bs[i] # i=0, (num_hidden, num_batch)
+      LB=torch.matmul(W_pos,LBs[i])+torch.matmul(W_neg,UBs[i])+bs[i] 
+
+      UBs.append(UB)
+      LBs.append(LB)
+      
+      A_U, B_U = get_upper_coefficients(UBs[-1],LBs[-1],activation) # A_U: (num_batch, num_hidden, num_hidden)
+      A_L, B_L = get_lower_coefficients(UBs[-1],LBs[-1],activation,method) 
+      B_U = B_U.T.unsqueeze(2)  # B_U: (num_batch, num_hidden, 1)
+      B_L = B_L.T.unsqueeze(2)
+
+      A_Us.append(A_U)
+      B_Us.append(B_U)
+      A_Ls.append(A_L)
+      B_Ls.append(B_L)
+    else:
+      
+
+      A_eq_U = torch.eye(Ws[i].size()[0])           
+      A_eq_U = A_eq_U.repeat(num_samples, 1, 1) # A_eq_U: (num_batch, num_hidden, num_hidden)
+      B_eq_U = torch.zeros(num_samples, Ws[i].size()[0], 1)            # B_eq_U: (num_batch, num_hidden, 1)
+      A_eq_L = torch.eye(Ws[i].size()[0])           
+      A_eq_L = A_eq_L.repeat(num_samples, 1, 1) # A_eq_U: (num_batch, num_hidden, num_hidden)
+      B_eq_L = torch.zeros(num_samples, Ws[i].size()[0], 1)            # B_eq_U: (num_batch, num_hidden, 1)
+
+      for j in range(i, -1, -1):
+        W_new = Ws[j].clone()
+        W_new = Ws[j].repeat(num_samples, 1, 1)
+        W_new = torch.bmm(A_eq_U, W_new)
+
+        b_new = bs[j].clone()
+        b_new = b_new.repeat(num_samples, 1, 1)
+        b_new_U = torch.bmm(A_eq_U, b_new) + B_eq_U
+        b_new_L = torch.bmm(A_eq_L, b_new) + B_eq_L
+
+        W_new_pos = W_new.clone()
+        W_new_neg = W_new.clone()
+        W_new_pos[W_new<0] = 0
+        W_new_neg[W_new>0] = 0
+
+        if j == 0:
+          break
+        A_U = A_Us[j - 1]
+        B_U = B_Us[j - 1]
+        A_L = A_Ls[j - 1]
+        B_L = B_Ls[j - 1]
+
+        A_eq_U = torch.bmm(W_new_pos, A_U) + torch.bmm(W_new_neg, A_L)
+        B_eq_U = torch.bmm(W_new_pos, B_U) + torch.bmm(W_new_neg, B_L) + b_new_U
+        A_eq_L = torch.bmm(W_new_pos, A_L) + torch.bmm(W_new_neg, A_U)
+        B_eq_L = torch.bmm(W_new_pos, B_L) + torch.bmm(W_new_neg, B_U) + b_new_L
+
+      UB=torch.bmm(W_new_pos,UBs[0].T.unsqueeze(2))+torch.bmm(W_new_neg,LBs[0].T.unsqueeze(2))+b_new_U 
+      UB = UB.squeeze(dim=-1).T # shape: (dim_out, num_batch)
+
+      LB=torch.bmm(W_new_pos,LBs[0].T.unsqueeze(2))+torch.bmm(W_new_neg,UBs[0].T.unsqueeze(2))+b_new_L
+      LB = LB.squeeze(dim=-1).T # shape: (dim_out, num_batch)
+
+      UBs.append(UB)
+      LBs.append(LB)
+
+      A_U, B_U = get_upper_coefficients(UBs[-1],LBs[-1],activation) # A_U: (num_batch, num_hidden, num_hidden)
+      A_L, B_L = get_lower_coefficients(UBs[-1],LBs[-1],activation,method) 
+      B_U = B_U.T.unsqueeze(2)  # B_U: (num_batch, num_hidden, 1)
+      B_L = B_L.T.unsqueeze(2)
+
+      A_Us.append(A_U)
+      B_Us.append(B_U)
+      A_Ls.append(A_L)
+      B_Ls.append(B_L)
+
+      
+  
+  return UBs, LBs 
+
 
 """## Check no violation"""
 
