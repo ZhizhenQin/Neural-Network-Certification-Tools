@@ -342,9 +342,9 @@ def get_barrier_bounds_fastlin_batch_mult_layers(x0, eps, Ws, bs, method="fastli
       W_neg=Ws[i].clone() 
       W_pos[Ws[i]<0]=0
       W_neg[Ws[i]>0]=0
+      
       UB=torch.matmul(W_pos,UBs[i])+torch.matmul(W_neg,LBs[i])+bs[i] # i=0, (num_hidden, num_batch)
       LB=torch.matmul(W_pos,LBs[i])+torch.matmul(W_neg,UBs[i])+bs[i] 
-
       UBs.append(UB)
       LBs.append(LB)
       
@@ -352,14 +352,11 @@ def get_barrier_bounds_fastlin_batch_mult_layers(x0, eps, Ws, bs, method="fastli
       A_L, B_L = get_lower_coefficients(UBs[-1],LBs[-1],activation,method) 
       B_U = B_U.T.unsqueeze(2)  # B_U: (num_batch, num_hidden, 1)
       B_L = B_L.T.unsqueeze(2)
-
       A_Us.append(A_U)
       B_Us.append(B_U)
       A_Ls.append(A_L)
       B_Ls.append(B_L)
     else:
-      
-
       A_eq_U = torch.eye(Ws[i].size()[0])           
       A_eq_U = A_eq_U.repeat(num_samples, 1, 1) # A_eq_U: (num_batch, num_hidden, num_hidden)
       B_eq_U = torch.zeros(num_samples, Ws[i].size()[0], 1)            # B_eq_U: (num_batch, num_hidden, 1)
@@ -413,8 +410,6 @@ def get_barrier_bounds_fastlin_batch_mult_layers(x0, eps, Ws, bs, method="fastli
       A_Ls.append(A_L)
       B_Ls.append(B_L)
 
-      
-  
   return UBs, LBs 
 
 
