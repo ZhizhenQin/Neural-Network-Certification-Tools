@@ -217,10 +217,11 @@ def get_lower_coefficients(UB,LB,activation="relu",method="fastlin"):
   if method=="fastlin":
     assert activation=="relu", "fast-lin only implements relu"
     A_L_diag[idx_uns] = UB[idx_uns]/(UB[idx_uns]-LB[idx_uns])
-  # elif method=="crown":
-  #   if activation=="relu":
-  #     idx_UgeqL = torch.logical_and(idx_uns,UB>=torch.abs(LB))
-  #     A_L_diag[idx_UgeqL] = 1
+  elif method=="crown":
+    assert activation=="relu", "crown only (currently) implements relu"
+    if activation=="relu":
+      idx_UgeqL = torch.logical_and(idx_uns,UB>=torch.abs(LB))
+      A_L_diag[idx_UgeqL] = 1
   #   elif activation=="tanh":
   #     act = lambda x: torch.tanh(x)
   #     derivative = lambda x: 1-torch.tanh(x)**2
